@@ -1,80 +1,82 @@
 <?php
 // ============================================================
-// LOGSUZLAR VIP - TEK DOSYA (API + Anasayfa)
+// LOGSUZLAR VIP - TEK DOSYA API (Tüm sorgular)
 // ============================================================
+error_reporting(0);
+ini_set('display_errors', 0);
+set_time_limit(120);
+
 header('Access-Control-Allow-Origin: *');
+header('Content-Type: application/json; charset=utf-8');
 
-$BASE = 'https://apiv2.ajaxsystems.fun';
-$SITE = 'https://apiv2.ajaxsystems.fun';
-$UAS = [
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-    'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
-];
+// ============================================================
+// ORTAK YARDIMCI FONKSİYONLAR
+// ============================================================
+function cek($url, $timeout = 8) {
+    static $cache = array();
+    if (isset($cache[$url])) return $cache[$url];
 
-$API_ENDPOINTS = [
-    'tc'           => 'tc.php',
-    'tcpro'        => 'tcpro.php',
-    'detaylitc'    => 'detaylıtc.php',
-    'aile'         => 'aile.php',
-    'ailepro'      => 'ailepro.php',
-    'sulale'       => 'sulale.php',
-    'soynesil'     => 'soynesil.php',
-    'kuzen'        => 'kuzen.php',
-    'cocuk'        => 'cocuk.php',
-    'es'           => 'es.php',
-    'tcgsm'        => 'tcgsm.php',
-    'gsmtc'        => 'gsmtc.php',
-    'gsmsulale'    => 'gsmsulale.php',
-    'sulalegsm'    => 'sulalegsm.php',
-    'adres'        => 'adres.php',
-    'detayliadres' => 'detaylıadres.php',
-    'tapu'         => 'tapu.php',
-    'adaparsel'    => 'adaparsel.php',
-    'sgk'          => 'sgk.php',
-    'isyeri'       => 'isyeri.php',
-    'eokul'        => 'eokul.php',
-    'adsoyad'      => 'adsoyad.php',
-];
-
-$action = isset($_GET['action']) ? trim($_GET['action']) : '';
-
-// ============ API MODU ============
-if ($action === 'api') {
-    header('Content-Type: application/json; charset=utf-8');
-    $type = isset($_GET['type']) ? strtolower(trim($_GET['type'])) : '';
-    if (!isset($API_ENDPOINTS[$type])) {
-        echo json_encode(['ok' => false, 'error' => 'Unknown type', 'available' => array_keys($API_ENDPOINTS)], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-    $params = $_GET;
-    unset($params['action'], $params['type']);
-    $qs = !empty($params) ? ('?' . http_build_query($params)) : '';
-    $url = $BASE . '/' . $API_ENDPOINTS[$type] . $qs;
+    $UAS = array(
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    );
 
     $ch = curl_init();
-    curl_setopt_array($ch, [
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
+    curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 4);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0);
+    curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+    curl_setopt($ch, CURLOPT_USERAGENT, $UAS[array_rand($UAS)]);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
+    curl_setopt($ch, CURLOPT_ENCODING, '');
+    $body = @curl_exec($ch);
+    @curl_close($ch);
+
+    if (!$body) { $cache[$url] = null; return null; }
+    $json = json_decode($body, true);
+    if (!is_array($json)) { $cache[$url] = null; return null; }
+    if (isset($json['auth'])) unset($json['auth']);
+    if (isset($json['auth_alt'])) unset($json['auth_alt']);
+    $cache[$url] = $json;
+    return $json;
+}
+
+function proxy_cek($target, $params) {
+    // ARO proxy tipi (ajaxsystems)
+    $url = $target;
+    if (!empty($params)) $url .= '?' . http_build_query($params);
+
+    $UAS = array(
+        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36',
+    );
+    $ua = $UAS[array_rand($UAS)];
+
+    $ch = curl_init();
+    curl_setopt_array($ch, array(
         CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_MAXREDIRS => 5,
         CURLOPT_TIMEOUT => 15,
+        CURLOPT_CONNECTTIMEOUT => 8,
         CURLOPT_SSL_VERIFYPEER => false,
         CURLOPT_SSL_VERIFYHOST => false,
-        CURLOPT_USERAGENT => $UAS[array_rand($UAS)],
-        CURLOPT_HTTPHEADER => [
+        CURLOPT_USERAGENT => $ua,
+        CURLOPT_HTTPHEADER => array(
             'Accept: application/json, text/plain, */*',
-            'Referer: ' . $SITE . '/',
-            'Origin: ' . $SITE,
-        ],
+            'Accept-Language: tr-TR,tr;q=0.9,en;q=0.8',
+            'Referer: https://apiv2.ajaxsystems.fun/',
+            'Origin: https://apiv2.ajaxsystems.fun',
+        ),
         CURLOPT_ENCODING => '',
-    ]);
+    ));
     $body = curl_exec($ch);
     curl_close($ch);
-
-    if (!$body) {
-        echo json_encode(['ok' => false, 'error' => 'Bağlantı hatası']);
-        exit;
-    }
+    if (!$body) return null;
     $body = preg_replace('/"auth"\s*:\s*"@jessy_php"\s*,?\s*/i', '', $body);
     $body = preg_replace('/"auth_alt"\s*:\s*"@jessy_php"\s*,?\s*/i', '', $body);
     $json = json_decode($body, true);
@@ -82,145 +84,453 @@ if ($action === 'api') {
         $json['api_script_sahibi'] = '@fbxnext';
         $json['instagram'] = '@logsuzlarpanel';
         $json['tiktok'] = '@logsuzlar.inc';
-        echo json_encode($json, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
-    } else {
-        echo json_encode(['ok' => false, 'error' => 'AES JS koruması', 'raw' => substr($body, 0, 200)], JSON_UNESCAPED_UNICODE);
     }
+    return $json;
+}
+
+function temizle($arr) {
+    if (!is_array($arr)) return $arr;
+    $yeni = array();
+    foreach ($arr as $k => $v) {
+        if (is_array($v)) {
+            $v = temizle($v);
+            if (!empty($v)) $yeni[$k] = $v;
+        } else {
+            if ($v !== null && $v !== '' && $v !== 'null' && $v !== 'NULL') $yeni[$k] = $v;
+        }
+    }
+    return $yeni;
+}
+
+function cinsiyet($ad) {
+    if (!$ad) return 'E';
+    $ad = strtoupper(str_replace(
+        array('i','ı','ş','ğ','ü','ö','ç'),
+        array('I','I','S','G','U','O','C'), $ad));
+    $kadin = array('AYSE','FATMA','EMINE','HATICE','ZEYNEP','ELIF','MERYEM','SERIFE','SULTAN',
+        'MERAL','MUZEYYEN','DURRI','KADRE','SEVIM','NUR','GUL','GULSUM','NAZLI','SEMA',
+        'SEVDA','MELEK','BURCU','ECE','SELMA','AYLIN','ESRA','DILEK','OZLEM','HULYA',
+        'LEYLA','SEVGI','DUYGU','EDA','BETUL','MELTEM','PINAR','CEREN','BAHAR','IREM',
+        'ZEHRA','ZUHAL','SUKRAN','ZELIHA','NESRIN','SIBEL','MELIHA','MELIKE','KADRIYE');
+    $p = explode(' ', trim($ad));
+    if (in_array($p[0], $kadin)) return 'K';
+    if (preg_match('/(YE|NA|LE|SE|GUL|NUR|HAN|CAN|SU|AY|EL)$/', $p[0])) return 'K';
+    return 'E';
+}
+
+function tarihParcala($tarih) {
+    if (!$tarih) return null;
+    if (preg_match('/(\d{1,2})\.(\d{1,2})\.(\d{4})/', $tarih, $m))
+        return array('gun'=>(int)$m[1],'ay'=>(int)$m[2],'yil'=>(int)$m[3]);
+    if (preg_match('/(\d{4})-(\d{1,2})-(\d{1,2})/', $tarih, $m))
+        return array('gun'=>(int)$m[3],'ay'=>(int)$m[2],'yil'=>(int)$m[1]);
+    return null;
+}
+
+function yasHesapla($dogum) {
+    if (!$dogum) return null;
+    $d = tarihParcala($dogum);
+    $b = tarihParcala(date('Y-n-j'));
+    if (!$d || !$b) return null;
+    $yas = $b['yil'] - $d['yil'];
+    if ($b['ay'] < $d['ay']) $yas--;
+    elseif ($b['ay'] == $d['ay'] && $b['gun'] < $d['gun']) $yas--;
+    return $yas;
+}
+
+function kisiCikar($k) {
+    if (!is_array($k)) return null;
+    $tc = isset($k['KimlikNo']) ? $k['KimlikNo'] : (isset($k['TC']) ? $k['TC'] : null);
+    $ad = isset($k['Isim']) ? $k['Isim'] : (isset($k['AD']) ? $k['AD'] : null);
+    $soyad = isset($k['Soyisim']) ? $k['Soyisim'] : (isset($k['SOYAD']) ? $k['SOYAD'] : null);
+    $dogum = isset($k['DogumTarihi']) ? $k['DogumTarihi'] : (isset($k['DOGUM_YILI']) ? $k['DOGUM_YILI'] : null);
+    $yas = isset($k['YAS']) ? $k['YAS'] : null;
+    $il = isset($k['NufusIl']) ? $k['NufusIl'] : (isset($k['MEMLEKETIL']) ? $k['MEMLEKETIL'] : null);
+    $ilce = isset($k['NufusIlce']) ? $k['NufusIlce'] : (isset($k['MEMLEKETILCE']) ? $k['MEMLEKETILCE'] : null);
+    $anneAd = isset($k['AnneIsim']) ? $k['AnneIsim'] : (isset($k['ANNEADI']) ? $k['ANNEADI'] : null);
+    $anneTc = isset($k['AnneKimlikNo']) ? $k['AnneKimlikNo'] : (isset($k['ANNETC']) ? $k['ANNETC'] : null);
+    $babaAd = isset($k['BabaIsim']) ? $k['BabaIsim'] : (isset($k['BABAADI']) ? $k['BABAADI'] : null);
+    $babaTc = isset($k['BabaKimlikNo']) ? $k['BabaKimlikNo'] : (isset($k['BABATC']) ? $k['BABATC'] : null);
+    if (!$tc && !$ad) return null;
+    return array('tc'=>$tc,'ad'=>$ad,'soyad'=>$soyad,'dogum'=>$dogum,'yas'=>$yas,
+        'il'=>$il,'ilce'=>$ilce,'anne_ad'=>$anneAd,'anne_tc'=>$anneTc,
+        'baba_ad'=>$babaAd,'baba_tc'=>$babaTc);
+}
+
+function listeCikar($veri) {
+    $liste = array();
+    if (!is_array($veri)) return $liste;
+    if (isset($veri[0]) && is_array($veri[0])) {
+        foreach ($veri as $k) { $n = kisiCikar($k); if ($n) $liste[] = $n; }
+        return $liste;
+    }
+    foreach (array('data','veri','sonuc','result','kisiler','aile','sulale','ailepro') as $alan) {
+        if (isset($veri[$alan]) && is_array($veri[$alan])) {
+            foreach ($veri[$alan] as $k) {
+                if (is_array($k)) { $n = kisiCikar($k); if ($n) $liste[] = $n; }
+            }
+        }
+    }
+    return $liste;
+}
+
+// ============================================================
+// ROUTING - ?type=xxx
+// ============================================================
+$type = isset($_GET['type']) ? strtolower(trim($_GET['type'])) : '';
+$tc = isset($_GET['tc']) ? preg_replace('/[^0-9]/', '', $_GET['tc']) : '';
+$gsm = isset($_GET['gsm']) ? preg_replace('/[^0-9]/', '', $_GET['gsm']) : '';
+$ad = isset($_GET['ad']) ? trim($_GET['ad']) : '';
+$soyad = isset($_GET['soyad']) ? trim($_GET['soyad']) : '';
+$dogum = isset($_GET['dogum']) ? trim($_GET['dogum']) : '';
+
+if (!$type) {
+    echo json_encode(array('ok'=>false,'hata'=>'type parametresi gerekli','ornek'=>'?type=tc&tc=11111111110'), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
-// ============ ANASAYFA ============
-?>
-<!DOCTYPE html>
-<html lang="tr">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Logsuzlar VIP - Sorgu Paneli</title>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:'Inter',sans-serif;background:#0a0a0f;color:#e4e4e7;min-height:100vh;background-image:radial-gradient(circle at 20% 0%,rgba(139,92,246,.15) 0%,transparent 50%),radial-gradient(circle at 80% 100%,rgba(59,130,246,.12) 0%,transparent 50%)}
-.header{position:sticky;top:0;z-index:100;background:rgba(10,10,15,.85);backdrop-filter:blur(20px);border-bottom:1px solid rgba(139,92,246,.15);padding:14px 20px}
-.header-inner{max-width:1400px;margin:0 auto;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap}
-.logo{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit}
-.logo-icon{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,#8b5cf6,#3b82f6);display:flex;align-items:center;justify-content:center;font-size:20px;box-shadow:0 0 30px rgba(139,92,246,.4)}
-.logo-text{font-size:18px;font-weight:800;background:linear-gradient(135deg,#a78bfa,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.logo-sub{font-size:11px;color:#71717a;font-weight:500;margin-top:2px}
-.header-links{display:flex;gap:10px}
-.btn{display:inline-flex;align-items:center;gap:8px;padding:10px 18px;border-radius:10px;font-size:13px;font-weight:600;text-decoration:none;transition:all .25s;border:1px solid transparent}
-.btn-channel{background:rgba(139,92,246,.1);border-color:rgba(139,92,246,.3);color:#a78bfa}
-.btn-channel:hover{background:rgba(139,92,246,.2);transform:translateY(-2px)}
-.btn-premium{background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;font-weight:700;box-shadow:0 4px 20px rgba(245,158,11,.3)}
-.btn-premium:hover{transform:translateY(-2px);box-shadow:0 8px 30px rgba(245,158,11,.5)}
-.hero{text-align:center;padding:60px 20px 40px}
-.hero h1{font-size:clamp(28px,5vw,52px);font-weight:900;letter-spacing:-1.5px;background:linear-gradient(135deg,#fff 0%,#a78bfa 50%,#60a5fa 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;margin-bottom:16px}
-.hero p{font-size:16px;color:#a1a1aa;max-width:600px;margin:0 auto;line-height:1.6}
-.hero-badge{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.3);border-radius:100px;font-size:12px;color:#a78bfa;font-weight:600;margin-bottom:20px}
-.hero-badge .dot{width:6px;height:6px;background:#10b981;border-radius:50%;box-shadow:0 0 10px #10b981}
-.stats{max-width:1400px;margin:0 auto 50px;padding:0 20px;display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
-.stat{background:rgba(24,24,32,.6);border:1px solid rgba(139,92,246,.15);border-radius:14px;padding:18px;text-align:center;backdrop-filter:blur(10px)}
-.stat-num{font-size:26px;font-weight:800;background:linear-gradient(135deg,#a78bfa,#60a5fa);-webkit-background-clip:text;-webkit-text-fill-color:transparent}
-.stat-label{font-size:12px;color:#71717a;margin-top:4px;font-weight:500}
-.container{max-width:1400px;margin:0 auto;padding:0 20px 60px}
-.section{margin-bottom:40px}
-.section-head{display:flex;align-items:center;gap:14px;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid rgba(139,92,246,.12)}
-.section-icon{width:40px;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0}
-.ic-purple{background:linear-gradient(135deg,#8b5cf6,#6d28d9)}.ic-pink{background:linear-gradient(135deg,#ec4899,#be185d)}.ic-blue{background:linear-gradient(135deg,#3b82f6,#1d4ed8)}.ic-green{background:linear-gradient(135deg,#10b981,#047857)}.ic-orange{background:linear-gradient(135deg,#f59e0b,#b45309)}.ic-red{background:linear-gradient(135deg,#ef4444,#b91c1c)}.ic-cyan{background:linear-gradient(135deg,#06b6d4,#0e7490)}.ic-yellow{background:linear-gradient(135deg,#eab308,#a16207)}.ic-indigo{background:linear-gradient(135deg,#6366f1,#4338ca)}.ic-rose{background:linear-gradient(135deg,#f43f5e,#be123c)}.ic-teal{background:linear-gradient(135deg,#14b8a6,#0f766e)}.ic-violet{background:linear-gradient(135deg,#a855f7,#7e22ce)}.ic-sky{background:linear-gradient(135deg,#0ea5e9,#0369a1)}
-.section-title{font-size:19px;font-weight:700;color:#f4f4f5}
-.section-count{font-size:12px;color:#71717a;margin-top:2px}
-.section-badge{margin-left:auto;padding:4px 12px;background:rgba(139,92,246,.1);border:1px solid rgba(139,92,246,.25);border-radius:100px;font-size:11px;color:#a78bfa;font-weight:600}
-.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
-.card{background:rgba(24,24,32,.7);border:1px solid rgba(139,92,246,.15);border-radius:14px;transition:all .3s;backdrop-filter:blur(10px)}
-.card:hover{border-color:rgba(139,92,246,.5);transform:translateY(-4px);box-shadow:0 15px 40px rgba(139,92,246,.2)}
-.card-body{padding:16px}
-.card-name{font-size:14px;font-weight:700;color:#f4f4f5;margin-bottom:4px}
-.card-desc{font-size:11px;color:#71717a;line-height:1.5;margin-bottom:12px;min-height:32px}
-.card-btn{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;padding:9px 12px;background:linear-gradient(135deg,rgba(245,158,11,.15),rgba(239,68,68,.15));border:1px solid rgba(245,158,11,.3);border-radius:9px;color:#fbbf24;font-size:12px;font-weight:700;text-decoration:none;transition:all .25s}
-.card-btn:hover{background:linear-gradient(135deg,#f59e0b,#ef4444);color:#fff;border-color:transparent;box-shadow:0 4px 20px rgba(245,158,11,.4)}
-.footer{text-align:center;padding:40px 20px;border-top:1px solid rgba(139,92,246,.12);color:#52525b;font-size:12px}
-.footer-links{display:flex;justify-content:center;gap:18px;margin-bottom:14px;flex-wrap:wrap}
-.footer-links a{color:#a78bfa;text-decoration:none;font-weight:600}
-@media (max-width:640px){.grid{grid-template-columns:repeat(auto-fill,minmax(160px,1fr))}}
-</style>
-</head>
-<body>
-<header class="header">
-  <div class="header-inner">
-    <a href="/" class="logo">
-      <div class="logo-icon">🔍</div>
-      <div><div class="logo-text">LOGSUZLAR VIP</div><div class="logo-sub">Sorgu Paneli v2.0</div></div>
-    </a>
-    <div class="header-links">
-      <a href="https://t.me/logsuzlarvip" target="_blank" class="btn btn-channel">📢 Kanala Katıl</a>
-      <a href="https://t.me/fbxnext" target="_blank" class="btn btn-premium">💎 Premium Al</a>
-    </div>
-  </div>
-</header>
+$sonuc = array('ok' => true);
 
-<section class="hero">
-  <div class="hero-badge"><span class="dot"></span> Sistem Aktif</div>
-  <h1>Profesyonel Sorgu Paneli</h1>
-  <p>Tüm sorgulara tek panelden erişin. Hızlı, güvenli, güncel.</p>
-</section>
+// ============================================================
+// 1) TC - Ajax proxy
+// ============================================================
+if ($type == 'tc' || $type == 'tcpro' || $type == 'tapu' || $type == 'adres' ||
+    $type == 'eokul' || $type == 'isyeri' || $type == 'sgk' ||
+    $type == 'aile' || $type == 'ailepro' || $type == 'sulale' ||
+    $type == 'tcgsm' || $type == 'gsmtc' || $type == 'adaparsel') {
 
-<div class="stats">
-  <div class="stat"><div class="stat-num">120+</div><div class="stat-label">Toplam Sorgu</div></div>
-  <div class="stat"><div class="stat-num">15</div><div class="stat-label">Kategori</div></div>
-  <div class="stat"><div class="stat-num">7/24</div><div class="stat-label">Kesintisiz</div></div>
-  <div class="stat"><div class="stat-num">%99.9</div><div class="stat-label">Uptime</div></div>
-</div>
+    $targets = array(
+        'tc'       => 'https://apiv2.ajaxsystems.fun/tc.php',
+        'tcpro'    => 'https://apiv2.ajaxsystems.fun/tcpro.php',
+        'tapu'     => 'https://apiv2.ajaxsystems.fun/tapu.php',
+        'adres'    => 'https://apiv2.ajaxsystems.fun/adres.php',
+        'eokul'    => 'https://apiv2.ajaxsystems.fun/eokul.php',
+        'isyeri'   => 'https://apiv2.ajaxsystems.fun/isyeri.php',
+        'sgk'      => 'https://solidarksystems.alwaysdata.net/sgk.php',
+        'aile'     => 'https://apiv2.ajaxsystems.fun/aile.php',
+        'ailepro'  => 'https://solidarksystems.alwaysdata.net/ailepro.php',
+        'sulale'   => 'https://apiv2.ajaxsystems.fun/sulale.php',
+        'tcgsm'    => 'https://apiv2.ajaxsystems.fun/tcgsm.php',
+        'gsmtc'    => 'https://apiv2.ajaxsystems.fun/gsmtc.php',
+        'adaparsel'=> 'https://apiv2.ajaxsystems.fun/adaparsel.php',
+    );
+    $params = $_GET;
+    unset($params['type']);
+    $json = proxy_cek($targets[$type], $params);
+    if ($json) { echo json_encode($json, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); exit; }
+    echo json_encode(array('ok'=>false,'hata'=>'Baglanti hatasi')); exit;
+}
 
-<div class="container">
-<?php
-$premium = "https://t.me/fbxnext";
-$cats = [
-    "Instagram Çözümleri" => ["icon"=>"📸","class"=>"ic-pink","items"=>[["Instagram Çalma","Hesap çalma"],["Instagram Sızma","Hesaba sızma"],["Instagram Gizli Hesap Görme","Gizli hesap gör"]]],
-    "WhatsApp Çözümleri" => ["icon"=>"💬","class"=>"ic-green","items"=>[["WhatsApp Çalma","Hesap çalma"],["WhatsApp Sızma","Hesaba sızma"],["WhatsApp DM Okuma","Mesaj okuma"]]],
-    "TikTok Çözümleri" => ["icon"=>"🎵","class"=>"ic-cyan","items"=>[["TikTok Çalma","Hesap çalma"],["TikTok Sızma","Hesaba sızma"]]],
-    "Snapchat Çözümleri" => ["icon"=>"👻","class"=>"ic-yellow","items"=>[["Snapchat Çalma","Hesap çalma"],["Snapchat Sızma","Hesaba sızma"]]],
-    "Galeri Çözümleri" => ["icon"=>"🖼️","class"=>"ic-indigo","items"=>[["Galeri Sızma","Galeriye sızma"]]],
-    "E-posta Çözümleri" => ["icon"=>"📧","class"=>"ic-sky","items"=>[["E-posta Şifre Kırma","Şifre kırma"],["E-posta Takip ve Gözetim","Takip sistemi"]]],
-    "Cihaz Takip" => ["icon"=>"📍","class"=>"ic-rose","items"=>[["Cihaz Takip","Konum takibi"]]],
-    "Kimlik Sorguları" => ["icon"=>"🆔","class"=>"ic-purple","items"=>[["TC","TC sorgu"],["TC Ad","TC ile ad"],["TC Pro","Detaylı TC"],["Azeri TC","Azeri TC"],["Vergi TC","Vergi TC"],["Vergi Ad","Vergi ad"],["Vergi Ad Sade","Basit vergi ad"],["Vergi No","Vergi numarası"]]],
-    "Aile & Sülale" => ["icon"=>"👨‍👩‍👧","class"=>"ic-orange","items"=>[["Aile","Aile bireyleri"],["Sülale","Sülale"]]],
-    "Telefon Sorguları" => ["icon"=>"📱","class"=>"ic-teal","items"=>[["TC GSM","TC→GSM"],["GSM TC","GSM→TC"],["Operator","Operatör"],["Azeri Tel","Azeri telefon"]]],
-    "Eğitim Sorguları" => ["icon"=>"🎓","class"=>"ic-blue","items"=>[["Olu","Öğrenci"],["Olu Ad","Öğrenci ad"],["Ogretmen","Öğretmen"],["E-Okul","E-Okul"],["Universite","Üniversite"],["Universite Ad","Üniversite ad"]]],
-    "Resmi Kayıtlar" => ["icon"=>"📋","class"=>"ic-violet","items"=>[["SGK","SGK"],["SGK Ad","SGK ad"],["Sicil","Sicil"],["Sicil Ad","Sicil ad"],["Secmen","Seçmen"],["Secmen Ad","Seçmen ad"],["Adres","Adres"],["Tapu","Tapu"],["Vesika","Vesika"],["Serino SKT","Seri no SKT"],["Meslek","Meslek"],["Ada Parsel","Ada parsel"]]],
-    "Araç & Plaka" => ["icon"=>"🚗","class"=>"ic-red","items"=>[["Plaka","Plaka sorgu"],["Plaka Ad","Plaka ad"]]],
-    "Dijital Platformlar" => ["icon"=>"💻","class"=>"ic-indigo","items"=>[["Discord ID","Discord ID"],["Discord Email","Discord email"]]],
-    "İletişim & SMS" => ["icon"=>"✉️","class"=>"ic-sky","items"=>[["SMS","SMS servisi"],["AM","Anonim mesaj"]]],
-];
-foreach ($cats as $name => $c):
-    $count = count($c['items']);
-?>
-<div class="section">
-  <div class="section-head">
-    <div class="section-icon <?= $c['class'] ?>"><?= $c['icon'] ?></div>
-    <div><div class="section-title"><?= htmlspecialchars($name) ?></div><div class="section-count"><?= $count ?> sorgu</div></div>
-    <div class="section-badge"><?= $count ?> Servis</div>
-  </div>
-  <div class="grid">
-    <?php foreach ($c['items'] as $item): ?>
-    <div class="card">
-      <div class="card-body">
-        <div class="card-name"><?= htmlspecialchars($item[0]) ?></div>
-        <div class="card-desc"><?= htmlspecialchars($item[1]) ?></div>
-        <a href="<?= $premium ?>" target="_blank" class="card-btn">💎 Premium Al</a>
-      </div>
-    </div>
-    <?php endforeach; ?>
-  </div>
-</div>
-<?php endforeach; ?>
-</div>
+// ============================================================
+// 2) ADSOYAD - solidarksystems proxy
+// ============================================================
+if ($type == 'adsoyad') {
+    $params = $_GET;
+    unset($params['type']);
+    $json = proxy_cek('https://solidarksystems.alwaysdata.net/adsoyad.php', $params);
+    if ($json) { echo json_encode($json, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); exit; }
+    echo json_encode(array('ok'=>false,'hata'=>'Baglanti hatasi')); exit;
+}
 
-<footer class="footer">
-  <div class="footer-links">
-    <a href="https://t.me/logsuzlarvip" target="_blank">📢 @logsuzlarvip</a>
-    <a href="https://t.me/fbxnext" target="_blank">💎 @fbxnext</a>
-  </div>
-  <div>© <?= date('Y') ?> Logsuzlar VIP</div>
-</footer>
-</body>
-</html>
+// ============================================================
+// 3) ADSOYADDOGUM - özel kod
+// ============================================================
+if ($type == 'adsoyaddogum') {
+    if (!$ad || !$soyad) { echo json_encode(array('ok'=>false,'hata'=>'ad ve soyad zorunlu')); exit; }
+    $q = http_build_query(array('ad'=>$ad,'soyad'=>$soyad,'dogum'=>$dogum));
+    $v = cek('https://solidarksystems.alwaysdata.net/adsoyad.php?'.$q);
+    if (!$v) $v = cek('https://apiv2.ajaxsystems.fun/adsoyad.php?'.$q);
+    $liste = listeCikar($v);
+    $cikti = array();
+    foreach ($liste as $k) {
+        $cins = cinsiyet($k['ad']);
+        $dp = tarihParcala($k['dogum']);
+        $item = temizle(array(
+            'TC'=>$k['tc'],'Ad'=>$k['ad'],'Soyad'=>$k['soyad'],
+            'Cinsiyet'=>($cins==='K')?'Kadin':'Erkek',
+            'DogumTarihi'=>$k['dogum'],
+            'Yas'=>isset($k['yas'])?$k['yas']:yasHesapla($k['dogum']),
+            'Il'=>$k['il'],'Ilce'=>$k['ilce'],
+            'AnneAdi'=>$k['anne_ad'],'BabaAdi'=>$k['baba_ad']
+        ));
+        if (!empty($item)) $cikti[] = $item;
+    }
+    echo json_encode(array('ok'=>true,'toplam'=>count($cikti),'sonuclar'=>$cikti,
+        'script_sahibi'=>'@fbxnext','instagram'=>'@logsuzlarpanel','tiktok'=>'@logsuzlar.inc'),
+        JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); exit;
+}
+
+// ============================================================
+// 4) DETAYLITC - özel kod
+// ============================================================
+if ($type == 'detaylitc') {
+    if (strlen($tc) !== 11) { echo json_encode(array('ok'=>false,'hata'=>'Gecerli 11 haneli TC girin')); exit; }
+    $kisi = null;
+    $v1 = cek('https://apiv2.ajaxsystems.fun/sulale.php?tc='.$tc);
+    if ($v1 && isset($v1['data'])) {
+        foreach ($v1['data'] as $k) if (isset($k['TC']) && $k['TC']==$tc) { $kisi = kisiCikar($k); break; }
+    }
+    if (!$kisi) {
+        $v2 = cek('https://apiv2.ajaxsystems.fun/aile.php?tc='.$tc);
+        if ($v2) foreach ($v2 as $k) if (isset($k['KimlikNo']) && $k['KimlikNo']==$tc) { $kisi = kisiCikar($k); break; }
+    }
+    if (!$kisi) { echo json_encode(array('ok'=>false,'hata'=>'Kisi bulunamadi')); exit; }
+    $cins = cinsiyet($kisi['ad']);
+    $out = array(
+        'ok'=>true,'tc'=>$tc,
+        'kisi'=>temizle(array(
+            'TC'=>$kisi['tc'],'Ad'=>$kisi['ad'],'Soyad'=>$kisi['soyad'],
+            'Cinsiyet'=>($cins==='K')?'Kadin':'Erkek',
+            'DogumTarihi'=>$kisi['dogum'],
+            'Yas'=>isset($kisi['yas'])?$kisi['yas']:yasHesapla($kisi['dogum']),
+            'Il'=>$kisi['il'],'Ilce'=>$kisi['ilce'],
+            'AnneAdi'=>$kisi['anne_ad'],'BabaAdi'=>$kisi['baba_ad']
+        )),
+        'script_sahibi'=>'@fbxnext','instagram'=>'@logsuzlarpanel','tiktok'=>'@logsuzlar.inc'
+    );
+    echo json_encode($out, JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); exit;
+}
+
+// ============================================================
+// 5) DETAYLIADRES - özel kod
+// ============================================================
+if ($type == 'detayliadres') {
+    if (strlen($tc) !== 11) { echo json_encode(array('ok'=>false,'hata'=>'Gecerli TC girin')); exit; }
+    $veri = cek('https://apiv2.ajaxsystems.fun/adres.php?tc='.$tc);
+    if (!$veri || !isset($veri['success'])) { echo json_encode(array('ok'=>false,'hata'=>'Adres bulunamadi')); exit; }
+    echo json_encode(array('ok'=>true,'adres'=>$veri['data'],
+        'script_sahibi'=>'@fbxnext','instagram'=>'@logsuzlarpanel','tiktok'=>'@logsuzlar.inc'),
+        JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); exit;
+}
+
+// ============================================================
+// 6) COCUK - özel kod
+// ============================================================
+if ($type == 'cocuk') {
+    if (strlen($tc) !== 11) { echo json_encode(array('ok'=>false,'hata'=>'Gecerli TC')); exit; }
+    $sv = cek('https://apiv2.ajaxsystems.fun/sulale.php?tc='.$tc);
+    $av = cek('https://apiv2.ajaxsystems.fun/aile.php?tc='.$tc);
+    $tum = array();
+    if ($sv && isset($sv['data'])) foreach ($sv['data'] as $k) {
+        $ktc = isset($k['TC'])?$k['TC']:null; if (!$ktc) continue;
+        $tum[$ktc] = array('tc'=>$ktc,'ad'=>isset($k['AD'])?$k['AD']:null,'soyad'=>isset($k['SOYAD'])?$k['SOYAD']:null,
+            'dogum'=>isset($k['DOGUM_YILI'])?$k['DOGUM_YILI']:null,'yas'=>isset($k['YAS'])?$k['YAS']:null,
+            'il'=>isset($k['MEMLEKETIL'])?$k['MEMLEKETIL']:null,'ilce'=>isset($k['MEMLEKETILCE'])?$k['MEMLEKETILCE']:null,
+            'anne_tc'=>isset($k['ANNETC'])?$k['ANNETC']:null,'baba_tc'=>isset($k['BABATC'])?$k['BABATC']:null);
+    }
+    if ($av && is_array($av)) foreach ($av as $k) {
+        $ktc = isset($k['KimlikNo'])?$k['KimlikNo']:null; if (!$ktc || isset($tum[$ktc])) continue;
+        $tum[$ktc] = array('tc'=>$ktc,'ad'=>isset($k['Isim'])?$k['Isim']:null,'soyad'=>isset($k['Soyisim'])?$k['Soyisim']:null,
+            'dogum'=>isset($k['DogumTarihi'])?$k['DogumTarihi']:null,'yas'=>null,
+            'il'=>isset($k['NufusIl'])?$k['NufusIl']:null,'ilce'=>isset($k['NufusIlce'])?$k['NufusIlce']:null,
+            'anne_tc'=>isset($k['AnneKimlikNo'])?$k['AnneKimlikNo']:null,'baba_tc'=>isset($k['BabaKimlikNo'])?$k['BabaKimlikNo']:null);
+    }
+    $liste = array();
+    foreach ($tum as $ktc=>$k) {
+        if ($ktc === $tc) continue;
+        if (($k['anne_tc'] && $k['anne_tc']===$tc) || ($k['baba_tc'] && $k['baba_tc']===$tc)) {
+            $cins = cinsiyet($k['ad']);
+            $liste[] = temizle(array('TC'=>$ktc,'Ad'=>$k['ad'],'Soyad'=>$k['soyad'],
+                'Cinsiyet'=>($cins==='K')?'Kadin':'Erkek','Yakinlik'=>($cins==='K')?'Kizi':'Oglu',
+                'DogumTarihi'=>$k['dogum'],'Yas'=>isset($k['yas'])?$k['yas']:yasHesapla($k['dogum']),
+                'Il'=>$k['il'],'Ilce'=>$k['ilce']));
+        }
+    }
+    echo json_encode(array('ok'=>true,'kok_tc'=>$tc,'toplam_cocuk'=>count($liste),'cocuklar'=>$liste,
+        'script_sahibi'=>'@fbxnext','instagram'=>'@logsuzlarpanel','tiktok'=>'@logsuzlar.inc'),
+        JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); exit;
+}
+
+// ============================================================
+// 7) ES - özel kod
+// ============================================================
+if ($type == 'es') {
+    if (strlen($tc) !== 11) { echo json_encode(array('ok'=>false,'hata'=>'Gecerli TC')); exit; }
+    $sv = cek('https://apiv2.ajaxsystems.fun/sulale.php?tc='.$tc);
+    $av = cek('https://apiv2.ajaxsystems.fun/aile.php?tc='.$tc);
+    $tum = array();
+    if ($sv && isset($sv['data'])) foreach ($sv['data'] as $k) {
+        $ktc = isset($k['TC'])?$k['TC']:null; if (!$ktc) continue;
+        $tum[$ktc] = array('tc'=>$ktc,'ad'=>isset($k['AD'])?$k['AD']:null,'soyad'=>isset($k['SOYAD'])?$k['SOYAD']:null,
+            'dogum'=>isset($k['DOGUM_YILI'])?$k['DOGUM_YILI']:null,'yas'=>isset($k['YAS'])?$k['YAS']:null,
+            'il'=>isset($k['MEMLEKETIL'])?$k['MEMLEKETIL']:null,'ilce'=>isset($k['MEMLEKETILCE'])?$k['MEMLEKETILCE']:null,
+            'anne_tc'=>isset($k['ANNETC'])?$k['ANNETC']:null,'baba_tc'=>isset($k['BABATC'])?$k['BABATC']:null);
+    }
+    if ($av && is_array($av)) foreach ($av as $k) {
+        $ktc = isset($k['KimlikNo'])?$k['KimlikNo']:null; if (!$ktc || isset($tum[$ktc])) continue;
+        $tum[$ktc] = array('tc'=>$ktc,'ad'=>isset($k['Isim'])?$k['Isim']:null,'soyad'=>isset($k['Soyisim'])?$k['Soyisim']:null,
+            'dogum'=>isset($k['DogumTarihi'])?$k['DogumTarihi']:null,'yas'=>null,
+            'il'=>isset($k['NufusIl'])?$k['NufusIl']:null,'ilce'=>isset($k['NufusIlce'])?$k['NufusIlce']:null,
+            'anne_tc'=>isset($k['AnneKimlikNo'])?$k['AnneKimlikNo']:null,'baba_tc'=>isset($k['BabaKimlikNo'])?$k['BabaKimlikNo']:null);
+    }
+    $esAday = array();
+    foreach ($tum as $ctc=>$c) {
+        if ($ctc === $tc) continue;
+        if (($c['anne_tc']===$tc || $c['baba_tc']===$tc)) {
+            $diger = ($c['anne_tc']===$tc) ? $c['baba_tc'] : $c['anne_tc'];
+            if ($diger && $diger !== $tc) {
+                if (!isset($esAday[$diger])) $esAday[$diger] = 0;
+                $esAday[$diger]++;
+            }
+        }
+    }
+    $liste = array();
+    foreach ($esAday as $etc=>$cc) {
+        if (!isset($tum[$etc])) continue;
+        $e = $tum[$etc]; $cins = cinsiyet($e['ad']);
+        $liste[] = temizle(array('TC'=>$etc,'Ad'=>$e['ad'],'Soyad'=>$e['soyad'],
+            'Cinsiyet'=>($cins==='K')?'Kadin':'Erkek','Yakinlik'=>($cins==='K')?'Esi (Karisi)':'Esi (Kocasi)',
+            'DogumTarihi'=>$e['dogum'],'Yas'=>isset($e['yas'])?$e['yas']:yasHesapla($e['dogum']),
+            'Il'=>$e['il'],'Ilce'=>$e['ilce'],'OrtakCocukSayisi'=>$cc));
+    }
+    echo json_encode(array('ok'=>true,'kok_tc'=>$tc,'toplam_es'=>count($liste),'esler'=>$liste,
+        'script_sahibi'=>'@fbxnext','instagram'=>'@logsuzlarpanel','tiktok'=>'@logsuzlar.inc'),
+        JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); exit;
+}
+
+// ============================================================
+// 8) DOGUM - özel kod
+// ============================================================
+if ($type == 'dogum') {
+    if (strlen($tc) !== 11) { echo json_encode(array('ok'=>false,'hata'=>'Gecerli TC')); exit; }
+    $sv = cek('https://apiv2.ajaxsystems.fun/sulale.php?tc='.$tc);
+    if (!$sv) $sv = cek('https://apiv2.ajaxsystems.fun/aile.php?tc='.$tc);
+    $anneTc = null; $anneAd = null;
+    if ($sv && isset($sv['data'])) foreach ($sv['data'] as $k) {
+        if (isset($k['TC']) && $k['TC']==$tc) {
+            $anneTc = isset($k['ANNETC'])?$k['ANNETC']:null;
+            $anneAd = isset($k['ANNEADI'])?$k['ANNEADI']:null; break;
+        }
+    }
+    if (!$anneTc) { echo json_encode(array('ok'=>false,'hata'=>'Anne bulunamadi')); exit; }
+    $av = cek('https://apiv2.ajaxsystems.fun/sulale.php?tc='.$anneTc);
+    $dtl = array();
+    if ($av && isset($av['data'])) foreach ($av['data'] as $a) {
+        if (isset($a['ANNETC']) && $a['ANNETC']===$anneTc) {
+            if (isset($a['DOGUM_YILI']) && $a['DOGUM_YILI']) $dtl[] = $a['DOGUM_YILI'];
+        }
+    }
+    echo json_encode(array('ok'=>true,'anne'=>array('TC'=>$anneTc,'Ad'=>$anneAd,'CocukSayisi'=>count($dtl),'CocukDogumTarihleri'=>$dtl),
+        'script_sahibi'=>'@fbxnext','instagram'=>'@logsuzlarpanel','tiktok'=>'@logsuzlar.inc'),
+        JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); exit;
+}
+
+// ============================================================
+// 9) SOYNESIL - özel kod (basit versiyon)
+// ============================================================
+if ($type == 'soynesil') {
+    if (strlen($tc) !== 11) { echo json_encode(array('ok'=>false,'hata'=>'Gecerli TC')); exit; }
+    $sv = cek('https://apiv2.ajaxsystems.fun/sulale.php?tc='.$tc);
+    if (!$sv) $sv = cek('https://apiv2.ajaxsystems.fun/aile.php?tc='.$tc);
+    $liste = listeCikar($sv);
+    $cikti = array();
+    foreach ($liste as $k) {
+        if ($k['tc']===$tc) continue;
+        $cikti[] = temizle(array('TC'=>$k['tc'],'Ad'=>$k['ad'],'Soyad'=>$k['soyad'],
+            'DogumTarihi'=>$k['dogum'],'Yas'=>isset($k['yas'])?$k['yas']:yasHesapla($k['dogum']),
+            'Il'=>$k['il'],'Ilce'=>$k['ilce'],'AnneAdi'=>$k['anne_ad'],'BabaAdi'=>$k['baba_ad']));
+    }
+    echo json_encode(array('ok'=>true,'toplam'=>count($cikti),'yakinlar'=>$cikti,
+        'script_sahibi'=>'@fbxnext','instagram'=>'@logsuzlarpanel','tiktok'=>'@logsuzlar.inc'),
+        JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); exit;
+}
+
+// ============================================================
+// 10) KUZEN - özel kod (basit versiyon)
+// ============================================================
+if ($type == 'kuzen') {
+    if (strlen($tc) !== 11) { echo json_encode(array('ok'=>false,'hata'=>'Gecerli TC')); exit; }
+    $sv = cek('https://apiv2.ajaxsystems.fun/sulale.php?tc='.$tc);
+    if (!$sv || !isset($sv['data'])) { echo json_encode(array('ok'=>false,'hata'=>'Kisi bulunamadi')); exit; }
+    $kok = null;
+    foreach ($sv['data'] as $k) if (isset($k['TC']) && $k['TC']==$tc) { $kok = $k; break; }
+    if (!$kok) { echo json_encode(array('ok'=>false,'hata'=>'Kisi bulunamadi')); exit; }
+    $kuzenler = array();
+    // Kuzen: amca/hala/dayı/teyzenin çocukları - basitleştirilmiş
+    foreach ($sv['data'] as $k) {
+        if (!isset($k['TC']) || $k['TC']==$tc) continue;
+        // Aynı soyadlı farklı aile üyeleri kuzen olabilir (basit tahmin)
+        $kuzenler[$k['TC']] = $k;
+    }
+    $liste = array();
+    foreach ($kuzenler as $ktc=>$k) {
+        $liste[] = temizle(array('TC'=>$ktc,'Ad'=>isset($k['AD'])?$k['AD']:null,
+            'Soyad'=>isset($k['SOYAD'])?$k['SOYAD']:null,
+            'DogumTarihi'=>isset($k['DOGUM_YILI'])?$k['DOGUM_YILI']:null,
+            'Yas'=>isset($k['YAS'])?$k['YAS']:null,
+            'Il'=>isset($k['MEMLEKETIL'])?$k['MEMLEKETIL']:null,
+            'Ilce'=>isset($k['MEMLEKETILCE'])?$k['MEMLEKETILCE']:null));
+    }
+    echo json_encode(array('ok'=>true,'kok_tc'=>$tc,'toplam_kuzen'=>count($liste),'kuzenler'=>$liste,
+        'script_sahibi'=>'@fbxnext','instagram'=>'@logsuzlarpanel','tiktok'=>'@logsuzlar.inc'),
+        JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); exit;
+}
+
+// ============================================================
+// 11) GSMSULALE - özel kod
+// ============================================================
+if ($type == 'gsmsulale') {
+    if (strlen($gsm)===12 && substr($gsm,0,2)==='90') $gsm = substr($gsm,2);
+    if (strlen($gsm)===11 && substr($gsm,0,1)==='0') $gsm = substr($gsm,1);
+    if (strlen($gsm)!==10 || substr($gsm,0,1)!=='5') { echo json_encode(array('ok'=>false,'hata'=>'Gecerli GSM girin')); exit; }
+    $gv = cek('https://apiv2.ajaxsystems.fun/gsmtc.php?gsm='.$gsm);
+    $gtc = null;
+    if ($gv && is_array($gv)) {
+        if (isset($gv['TC'])) $gtc = $gv['TC'];
+        elseif (isset($gv['KimlikNo'])) $gtc = $gv['KimlikNo'];
+        elseif (isset($gv[0]['TC'])) $gtc = $gv[0]['TC'];
+    }
+    if (!$gtc) { echo json_encode(array('ok'=>false,'hata'=>'GSM TC bulunamadi')); exit; }
+    $sv = cek('https://apiv2.ajaxsystems.fun/sulale.php?tc='.$gtc);
+    $liste = listeCikar($sv);
+    $cikti = array();
+    foreach ($liste as $k) {
+        $cikti[] = temizle(array('TC'=>$k['tc'],'Ad'=>$k['ad'],'Soyad'=>$k['soyad'],
+            'DogumTarihi'=>$k['dogum'],'Yas'=>isset($k['yas'])?$k['yas']:yasHesapla($k['dogum']),
+            'Il'=>$k['il'],'Ilce'=>$k['ilce']));
+    }
+    echo json_encode(array('ok'=>true,'gsm'=>$gsm,'kok_tc'=>$gtc,'toplam'=>count($cikti),'liste'=>$cikti,
+        'script_sahibi'=>'@fbxnext','instagram'=>'@logsuzlarpanel','tiktok'=>'@logsuzlar.inc'),
+        JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); exit;
+}
+
+// ============================================================
+// 12) SULALEGSM - özel kod
+// ============================================================
+if ($type == 'sulalegsm') {
+    if (strlen($tc) !== 11) { echo json_encode(array('ok'=>false,'hata'=>'Gecerli TC')); exit; }
+    $sv = cek('https://apiv2.ajaxsystems.fun/sulale.php?tc='.$tc);
+    $liste = listeCikar($sv);
+    $gsmler = array();
+    $sayac = 0;
+    foreach ($liste as $k) {
+        if ($sayac >= 10) break;
+        $sayac++;
+        $gv = cek('https://apiv2.ajaxsystems.fun/tcgsm.php?tc='.$k['tc'], 5);
+        if (!$gv) continue;
+        array_walk_recursive($gv, function($v, $key) use (&$gsmler, $k) {
+            if (is_string($v) || is_numeric($v)) {
+                $g = preg_replace('/[^0-9]/', '', (string)$v);
+                if (strlen($g)===12 && substr($g,0,2)==='90') $g = substr($g,2);
+                if (strlen($g)===11 && substr($g,0,1)==='0') $g = substr($g,1);
+                if (strlen($g)===10 && substr($g,0,1)==='5') {
+                    $gsmler[$g] = isset($k['tc'])?$k['tc']:null;
+                }
+            }
+        });
+    }
+    $cikti = array();
+    foreach ($gsmler as $g=>$t) $cikti[] = array('GSM'=>$g,'TC'=>$t);
+    echo json_encode(array('ok'=>true,'kok_tc'=>$tc,'toplam'=>count($cikti),'liste'=>$cikti,
+        'script_sahibi'=>'@fbxnext','instagram'=>'@logsuzlarpanel','tiktok'=>'@logsuzlar.inc'),
+        JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); exit;
+}
+
+// ============================================================
+// BULUNAMADI
+// ============================================================
+echo json_encode(array('ok'=>false,'hata'=>'Bilinmeyen type: '.$type,
+    'mevcut'=>array('tc','tcpro','tapu','adres','eokul','isyeri','sgk','aile','ailepro',
+        'sulale','tcgsm','gsmtc','adaparsel','adsoyad','adsoyaddogum','detaylitc','detayliadres',
+        'cocuk','es','dogum','soynesil','kuzen','gsmsulale','sulalegsm')),
+    JSON_UNESCAPED_UNICODE);
